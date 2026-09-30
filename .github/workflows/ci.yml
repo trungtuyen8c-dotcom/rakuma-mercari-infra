@@ -22,11 +22,10 @@ jobs:
         run: shellcheck scripts/*.sh
       - name: Compose config is valid (prod and local)
         run: |
-          mkdir -p secrets && touch secrets/htpasswd && cp .env.example .env
+          cp .env.example .env
           docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
           docker compose -f docker-compose.yml -f docker-compose.local.yml config -q
       - name: nginx config is valid
         run: |
-          docker run --rm -v "$PWD/nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro" \
-            -v "$PWD/secrets/htpasswd:/etc/nginx/htpasswd:ro" --add-host backend:127.0.0.1 \
+          docker run --rm -v "$PWD/nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro" --add-host backend:127.0.0.1 \
             nginx:1.29-alpine nginx -t
