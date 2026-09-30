@@ -1,4 +1,4 @@
-# VPS overrides: web on port 80 behind basic auth, Postgres not published at all.
+# VPS overrides: web on port 80, Postgres not published at all.
 # Use: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 services:
   db:
@@ -8,4 +8,3 @@ services:
       - "80:80"
     volumes:
       - ./nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./secrets/htpasswd:/etc/nginx/htpasswd:ro

@@ -1,6 +1,6 @@
 PROD = docker compose -f docker-compose.yml -f docker-compose.prod.yml
 
-.PHONY: vps-logs vps-ps up down logs ps seed-demo inspect-excel import-excel reset-db
+.PHONY: set-password vps-logs vps-ps up down logs ps seed-demo inspect-excel import-excel reset-db
 
 LOCAL = docker compose -f docker-compose.yml -f docker-compose.local.yml
 
@@ -15,6 +15,9 @@ logs:
 
 ps:
 	docker compose ps
+
+set-password: ## Generate a new owner password and print it once
+	docker compose exec backend set-password -generate
 
 seed-demo: ## Load the UI prototype's sample data into an EMPTY database (dev only)
 	docker compose exec backend seed-demo
