@@ -1,0 +1,6 @@
+# Local development: build images from the sibling repos instead of pulling from GHCR.
+services:
+  backend:
+    build: ../rakuma-mercari-backend
+  web:
+    build: ../rakuma-mercari-frontend

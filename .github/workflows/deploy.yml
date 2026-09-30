@@ -1,0 +1,54 @@
+name: Deploy
+
+# Ships compose files, nginx config and scripts to the VPS, then reconciles the stack.
+# Image versions are not changed here: they stay pinned in the server .env by the app repos' deploys.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production-infra
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "docker-compose.yml,docker-compose.prod.yml,nginx/prod.conf,scripts/release.sh,Makefile,.env.example"
+          target: /var/www/rakuma/rakuma-mercari-infra
+      - name: Reconcile stack + health check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /var/www/rakuma/rakuma-mercari-infra
+            chmod +x scripts/release.sh
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            trap 'docker logout ghcr.io >/dev/null' EXIT
+            C="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+            $C up -d --remove-orphans
+            for i in $(seq 1 20); do
+              curl -fsS http://localhost/healthz && { echo; $C ps; exit 0; }
+              sleep 3
+            done
+            echo "health check failed" >&2
+            $C logs --tail=50 >&2
+            exit 1

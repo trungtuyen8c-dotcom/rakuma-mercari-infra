@@ -1,0 +1,36 @@
+# rakuma-mercari-infra
+
+## Deploy to the VPS
+
+- Target: 222.255.181.169 (Ubuntu 24.04). SSH alias `rakuma-vps`, user `deploy`, key only. Root and password login are off, `ufw` allows only 22, 80 and 443, and fail2ban watches sshd.
+- Run `make deploy`. It runs the tests, syncs the code to `/var/www/rakuma`, rebuilds, and health-checks. `make vps-ps` and `make vps-logs` show status and logs.
+- Server-only files live in `/var/www/rakuma/rakuma-mercari-infra`: `.env` (DB password, APP_URL, OAuth) and `secrets/htpasswd` (the site's basic-auth login). Deploys never overwrite them.
+- Excel import on the server: `scp rakuma_t7.xlsx rakuma-vps:/var/www/rakuma/rakuma-mercari-infra/data/`, then `ssh rakuma-vps` and run `cd /var/www/rakuma/rakuma-mercari-infra && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec backend import-excel /data/rakuma_t7.xlsx`.
+- Once there is a domain: point DNS to the VPS, add HTTPS, set `APP_URL=https://...` and `APP_ENV=production` with the Google OAuth keys, and remove basic auth from `nginx/prod.conf`.
+
+## Local (optional)
+
+Docker Compose for the whole system: Postgres, the Go API, and the web app (nginx serving the SPA and proxying `/api`). It expects the sibling repos `../rakuma-mercari-backend` and `../rakuma-mercari-frontend`.
+
+```sh
+cp .env.example .env   # optional; defaults work for local use
+make up                # http://localhost:8088
+make seed-demo         # sample data, empty DB only
+make logs / make down
+```
+
+## Importing the Excel file
+
+1. Copy `rakuma_t7.xlsx` into `data/`. The folder is git-ignored.
+2. Run `make inspect-excel` and check that the column layout matches the defaults. See the backend README.
+3. Run `make import-excel`. It works on an empty database only, and nothing is saved unless the totals reconcile.
+
+## Google sign-in
+
+1. Create an OAuth client ID (Web application) in Google Cloud Console.
+2. Add the authorized redirect URI `$APP_URL/api/v1/auth/google/callback`.
+3. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`, then run `make up`.
+
+Only `RAKUMA_OWNER_EMAIL` can sign in. Set `APP_ENV=production` to turn dev login off.
+
+Ports: web 8088 and Postgres 127.0.0.1:55432. Change them with `WEB_PORT` and `DB_PORT`. `make reset-db` deletes all data.
