@@ -7,7 +7,6 @@
 - Manual rollback: `ssh rakuma-vps /var/www/rakuma/rakuma-mercari-infra/scripts/release.sh backend v0.1.0`. Log in to GHCR first if the image is not cached.
 - Server-only files: `/var/www/rakuma/rakuma-mercari-infra/.env` holds the DB password, APP_URL, APP_ENV=production, OAuth keys, and the BACKEND_TAG/WEB_TAG pins. Deploys never overwrite it.
 - Sign-in is the owner email + password. To reset the password: `ssh rakuma-vps`, then `cd /var/www/rakuma/rakuma-mercari-infra && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec backend set-password -generate`. Five wrong passwords lock that IP out for 15 minutes.
-- Direct Postgres access: the DB listens only on the VPS loopback `127.0.0.1:55432`. Open a tunnel with `ssh -N -L 55432:127.0.0.1:55432 rakuma-vps`, then connect a client to `localhost:55432` (database and user `rakuma`, password `DB_PASSWORD` from the server `.env`). Writing directly skips validation and the audit log, so enter data through the app.
 - Excel import on the server: `scp rakuma_t7.xlsx rakuma-vps:/var/www/rakuma/rakuma-mercari-infra/data/`, then `ssh rakuma-vps` and run `cd /var/www/rakuma/rakuma-mercari-infra && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec backend import-excel /data/rakuma_t7.xlsx`.
 - The site is plain HTTP on the IP, so avoid public Wi-Fi. With a domain (a free one such as sslip.io works too) you can add HTTPS and, optionally, Google OAuth keys.
 
