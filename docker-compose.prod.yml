@@ -1,9 +1,8 @@
-# VPS overrides: web on port 80, Postgres only on the VPS loopback (reach it with an SSH tunnel).
+# VPS overrides: web on port 80, Postgres not published at all.
 # Use: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 services:
   db:
-    ports: !override
-      - "127.0.0.1:55432:5432"
+    ports: !reset []
   web:
     ports: !override
       - "80:80"
