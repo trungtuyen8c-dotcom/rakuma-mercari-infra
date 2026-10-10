@@ -1,6 +1,6 @@
 PROD = docker compose -f docker-compose.yml -f docker-compose.prod.yml
 
-.PHONY: set-password vps-logs vps-ps up down logs ps seed-demo inspect-excel import-excel reset-db
+.PHONY: set-password vps-logs vps-ps up down logs ps seed-demo inspect-excel import-excel reset-db e2e e2e-main e2e-vps
 
 LOCAL = docker compose -f docker-compose.yml -f docker-compose.local.yml
 
@@ -36,3 +36,12 @@ vps-ps:
 
 vps-logs:
 	ssh rakuma-vps "cd /var/www/rakuma/rakuma-mercari-infra && $(PROD) logs -f --tail=100"
+
+e2e: ## Full-stack e2e on an isolated stack (:18088), built from the local sibling repos
+	./e2e/run.sh
+
+e2e-main: ## Same, built from origin/main (what the VPS runs)
+	E2E_REF=origin/main ./e2e/run.sh
+
+e2e-vps: ## Read-only smoke test of the live VPS (SSH tunnel via rakuma-vps)
+	cd e2e && npx e2e run --config e2e.prod.config.ts

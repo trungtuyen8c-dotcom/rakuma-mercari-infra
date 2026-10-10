@@ -21,6 +21,19 @@ make seed-demo         # sample data, empty DB only
 make logs / make down
 ```
 
+## End-to-end tests
+
+`e2e/` holds a full-stack suite (frontend, backend, nginx, MCP server) written with [tester-army/e2e](https://github.com/tester-army/e2e). It needs Docker and Node 24, and makes no AI model calls. `run.sh` builds an isolated stack (Compose project `rakuma-e2e`, web on :18088, its own DB volume), sets a throwaway owner password, loads the demo data, runs the tests, then deletes the stack.
+
+```sh
+make e2e-main          # backend + frontend built from origin/main
+make e2e               # built from the local sibling repos
+FRONTEND_SRC=../../rakuma-mercari-frontend-audit ./e2e/run.sh   # any folder, e.g. a branch worktree
+make e2e-vps           # read-only smoke test of the live VPS over an SSH tunnel (alias rakuma-vps)
+```
+
+Run `cd e2e && npm ci` once first. Results go to `e2e/.e2e/` (`report.json`, `failures/*.md`).
+
 ## Importing the Excel file
 
 1. Copy `rakuma_t7.xlsx` into `data/`. The folder is git-ignored.
