@@ -154,7 +154,7 @@ describe('Nhập hàng, Bán hàng, Tồn kho, Sản phẩm, Phân tích', () =>
     await browser.reload(); // rows made through the API above; the SPA loads /state once
     const table = screen.getByRole('region', 'Bảng danh mục sản phẩm');
 
-    await table.getByRole('button', `Sửa tên E2E used ${id}`).tap();
+    await table.getByRole('button', `Sửa tên / từ khóa E2E used ${id}`).tap();
     await table.getByRole('textbox', `Tên mới cho E2E used ${id}`).fill(`E2E renamed ${id}`);
     await table.getByRole('textbox', `Tên mới cho E2E used ${id}`).press('Enter');
     await expect(table.getByText(`E2E renamed ${id}`)).toBeVisible();

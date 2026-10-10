@@ -87,3 +87,51 @@ test('synced Rakuma orders: approve into Nhập hàng, dismiss/restore, reply to
     await api(`/api/v1/api-keys/${key.record.id}/revoke`, { method: 'POST' });
   }
 });
+
+// Owner request 2026-10-10: product picked from keywords, "4BOX" split into qty and unit price, gap badges, chat panel.
+test('approve form fills product and quantity from the title; missing info is flagged; chat is readable', { session: 'owner' }, async ({ app, screen, api, browser }) => {
+  await app.open('/');
+  const id = Date.now().toString(36);
+  const products: any[] = await (await api('/api/v1/products')).json();
+  const target = products.find(p => p.active);
+  const before = target.keywords;
+  const res = await api(`/api/v1/products/${target.id}`, { method: 'PATCH', json: { keywords: `kw${id}` } });
+  expect(res.status).toBe(200);
+  const key = await (await api('/api/v1/api-keys', { method: 'POST', json: { name: `e2e-guess-${id}`, scope: 'write' } })).json();
+  const sync = (orders: unknown[]) => fetch(new URL('/api/v1/rakuma/sync', app.baseUrl), {
+    method: 'POST', headers: { authorization: `Bearer ${key.key}`, 'content-type': 'application/json' }, body: JSON.stringify({ orders }),
+  });
+  const guessNo = `E2EG${id}`, gapNo = `E2EH${id}`;
+  try {
+    expect((await sync([
+      { orderNo: guessNo, link: `https://item.fril.jp/g${id}`, title: `ポケモン KW${id.toUpperCase()} 未開封 4BOX`, status: '支払い (期限 10/12 23:59)', price: 100000, seller: 'shopG', chatOpen: true,
+        messages: [{ from: 'buyer', at: '2026/10/06 15:56', body: 'よろしくお願いします' }, { from: 'seller', at: '2026/10/07 09:00', body: '発送しました\n明日届きます' }] },
+      { orderNo: gapNo, link: `https://item.fril.jp/h${id}`, title: '', status: '商品の受取 (発送済み 10/08)', price: 0, seller: 'shopH', chatOpen: true },
+    ])).status).toBe(200);
+
+    await app.open('/#rakuma');
+    await browser.reload();
+    const form = screen.getByRole('form', `Duyệt đơn ${guessNo}`);
+    await expect(form.getByLabel('Sản phẩm *')).toHaveValue(target.id);
+    await expect(form.getByLabel('Số lượng *')).toHaveValue('4');
+    await expect(form.getByLabel('Giá nhập mỗi cái (¥) *')).toHaveValue('25000');
+    await expect(form).toContainText(`Tự chọn “${target.name}” theo từ khóa`);
+
+    // Chat: seller message after a "Tin mới" divider, multi-line text kept
+    const chat = screen.getByRole('region', 'Tin nhắn với shopG');
+    await expect(chat).toContainText('Tin mới');
+    await expect(chat).toContainText('明日届きます');
+
+    // Gap badges and the matching filter
+    const gapCard = screen.getByRole('article', `Đơn Rakuma ${gapNo}`).first();
+    await expect(gapCard).toContainText('Thiếu tên món');
+    await expect(gapCard).toContainText('Thiếu giá');
+    await expect(gapCard).toContainText('Đã gửi, chưa có mã vận đơn');
+    await screen.getByRole('combobox', 'Trạng thái').selectOption({ label: 'Thiếu tên hoặc giá' });
+    await expect(screen.getByRole('article', `Đơn Rakuma ${gapNo}`)).toBeVisible();
+    await expect(screen.getByRole('article', `Đơn Rakuma ${guessNo}`)).toBeHidden();
+  } finally {
+    await api(`/api/v1/products/${target.id}`, { method: 'PATCH', json: { keywords: before || '' } });
+    await api(`/api/v1/api-keys/${key.record.id}/revoke`, { method: 'POST' });
+  }
+});
