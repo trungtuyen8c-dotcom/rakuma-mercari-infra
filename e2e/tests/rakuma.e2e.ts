@@ -135,3 +135,48 @@ test('approve form fills product and quantity from the title; missing info is fl
     await api(`/api/v1/api-keys/${key.record.id}/revoke`, { method: 'POST' });
   }
 });
+
+// Owner request 2026-10-11: paid orders go straight into Nhập hàng; a combined order is split into one row per product.
+test('sync writes a paid order into Nhập hàng; the owner splits the combined order by product', { session: 'owner' }, async ({ app, screen, api, browser }) => {
+  await app.open('/');
+  const id = Date.now().toString(36);
+  const dash = await (await api('/api/v1/dashboard')).json();
+  const [a, b] = ((await (await api('/api/v1/products')).json()) as any[]).filter(p => p.active);
+  const key = await (await api('/api/v1/api-keys', { method: 'POST', json: { name: `e2e-split-${id}`, scope: 'write' } })).json();
+  const link = `https://item.fril.jp/s${id}`;
+  const rowsOfOrder = async () => ((await (await api('/api/v1/purchases')).json()) as any[]).filter(p => p.link === link || p.tracking === `TRK${id}`);
+  try {
+    const res = await (await fetch(new URL('/api/v1/rakuma/sync', app.baseUrl), {
+      method: 'POST', headers: { authorization: `Bearer ${key.key}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ orders: [{ orderNo: `E2ES${id}`, link, title: `まとめ売り zz${id}`, status: '商品の受取 (発送済み 10/08)',
+        date: dash.period.start, price: 30000, discount: 0, tracking: `TRK${id}`, seller: `shopS-${id}`, chatOpen: true }] }),
+    })).json();
+    expect(res.purchased).toBe(1);
+
+    await app.open('/#purchases');
+    await browser.reload();
+    await screen.getByRole('combobox', 'Sản phẩm').selectOption({ label: 'Chưa có tên' });
+    const row = screen.getByRole('region', 'Bảng nhập hàng').getByRole('row').filter({ hasText: `TRK${id}` });
+    await expect(row).toContainText('Chưa có tên');
+    await row.getByRole('button', /^Tách đơn gộp/).tap();
+
+    const form = screen.getByRole('form', /^Tách đơn gộp/);
+    await form.getByRole('combobox', 'Sản phẩm 1').selectOption({ label: a.name });
+    await form.getByLabel('Số lượng sản phẩm 1').fill('2');
+    await form.getByLabel('Giá mỗi cái sản phẩm 1 (¥)').fill('10000');
+    await form.getByRole('combobox', 'Sản phẩm 2').selectOption({ label: b.name });
+    await form.getByLabel('Giá mỗi cái sản phẩm 2 (¥)').fill('9000');
+    await expect(form).toContainText('còn thiếu 1.000¥');
+    await expect(form.getByRole('button', 'Lưu 2 dòng')).toBeDisabled();
+    await form.getByLabel('Giá mỗi cái sản phẩm 2 (¥)').fill('10000');
+    await form.getByRole('button', 'Lưu 2 dòng').tap();
+    await expect(screen.getByRole('status')).toContainText('Đã tách thành 2 dòng nhập.');
+
+    const rows = await rowsOfOrder();
+    expect(rows.map(r => [r.productId, r.qty, r.total, r.link ? 'link' : '', r.merged]).sort()).toEqual(
+      [[a.id, 2, 20000, 'link', true], [b.id, 1, 10000, '', true]].sort());
+  } finally {
+    for (const r of await rowsOfOrder()) await api(`/api/v1/purchases/${r.id}`, { method: 'DELETE' });
+    await api(`/api/v1/api-keys/${key.record.id}/revoke`, { method: 'POST' });
+  }
+});
