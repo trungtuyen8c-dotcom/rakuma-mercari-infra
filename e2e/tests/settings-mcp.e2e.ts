@@ -32,7 +32,7 @@ describe('Cài đặt', () => {
 
     const mcp = await startMcp(app.baseUrl, key);
     try {
-      expect((await mcp.listTools()).tools).toHaveLength(22);
+      expect((await mcp.listTools()).tools).toHaveLength(23);
 
       const dash = json(await mcp.callTool({ name: 'get_dashboard', arguments: {} }));
       const server = await (await api('/api/v1/dashboard')).json();

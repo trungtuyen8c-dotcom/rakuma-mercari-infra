@@ -104,9 +104,9 @@ test('approve form fills product and quantity from the title; missing info is fl
   const guessNo = `E2EG${id}`, gapNo = `E2EH${id}`;
   try {
     expect((await sync([
-      { orderNo: guessNo, link: `https://item.fril.jp/g${id}`, title: `ポケモン KW${id.toUpperCase()} 未開封 4BOX`, status: '支払い (期限 10/12 23:59)', price: 100000, seller: 'shopG', chatOpen: true,
+      { orderNo: guessNo, link: `https://item.fril.jp/g${id}`, title: `ポケモン KW${id.toUpperCase()} 未開封 4BOX`, status: '支払い (期限 10/12 23:59)', price: 100000, seller: `shopG-${id}`, chatOpen: true,
         messages: [{ from: 'buyer', at: '2026/10/06 15:56', body: 'よろしくお願いします' }, { from: 'seller', at: '2026/10/07 09:00', body: '発送しました\n明日届きます' }] },
-      { orderNo: gapNo, link: `https://item.fril.jp/h${id}`, title: '', status: '商品の受取 (発送済み 10/08)', price: 0, seller: 'shopH', chatOpen: true },
+      { orderNo: gapNo, link: `https://item.fril.jp/h${id}`, title: '', status: '商品の受取 (発送済み 10/08)', price: 0, seller: `shopH-${id}`, chatOpen: true },
     ])).status).toBe(200);
 
     await app.open('/#rakuma');
@@ -118,7 +118,7 @@ test('approve form fills product and quantity from the title; missing info is fl
     await expect(form).toContainText(`Tự chọn “${target.name}” theo từ khóa`);
 
     // Chat: seller message after a "Tin mới" divider, multi-line text kept
-    const chat = screen.getByRole('region', 'Tin nhắn với shopG');
+    const chat = screen.getByRole('region', `Tin nhắn với shopG-${id}`);
     await expect(chat).toContainText('Tin mới');
     await expect(chat).toContainText('明日届きます');
 
