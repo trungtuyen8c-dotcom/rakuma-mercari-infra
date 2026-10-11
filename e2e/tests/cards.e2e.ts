@@ -37,6 +37,18 @@ test('add a card, pay a purchase with it, and read it back from the card ledger'
 
     const ledger: any[] = await (await api(`/api/v1/wallet-ledger?wallet=${encodeURIComponent(cardName)}`)).json();
     expect(ledger.map(r => [r.wallet, r.project, r.date, r.amount, r.category])).toEqual([[cardName, 'rakuma', dash.period.start, -24000, 'Mua hàng']]);
+
+    // Sổ thẻ adds the charges up per day / week / month for checking against the card statement
+    await app.open('/#cards');
+    await screen.getByLabel('Từ').fill(dash.period.start);
+    await screen.getByLabel('Đến').fill(dash.period.end);
+    await screen.getByRole('combobox', 'Thẻ').selectOption({ label: cardName });
+    await screen.getByRole('radio', 'Tháng').tap();
+    const table = screen.getByRole('region', 'Bảng sổ thẻ');
+    const month = table.getByRole('row').filter({ hasText: cardName });
+    await expect(month).toContainText('24.000¥');
+    await month.getByRole('button', 'Xem dòng').tap();
+    await expect(table).toContainText('Sổ kho Rakuma, kỳ');
   } finally {
     for (const p of ((await (await api('/api/v1/purchases')).json()) as any[]).filter(p => p.note === note)) {
       await api(`/api/v1/purchases/${p.id}`, { method: 'DELETE' });
