@@ -111,23 +111,32 @@ test('approve form fills product and quantity from the title; missing info is fl
 
     await app.open('/#rakuma');
     await browser.reload();
-    const form = screen.getByRole('form', `Duyệt đơn ${guessNo}`);
+
+    // Inbox card: shop, item link and the new messages; "Tin mới" divider, multi-line text kept
+    const inbox = screen.getByRole('article', `Đơn Rakuma ${guessNo}`);
+    await expect(inbox.getByRole('link', /KW/)).toHaveAttribute('href', `https://item.fril.jp/g${id}`);
+    const chat = inbox.getByRole('region', `Tin nhắn với shopG-${id}`);
+    await expect(chat).toContainText('Tin mới');
+    await expect(chat).toContainText('明日届きます');
+
+    // Gap badges on the queued card
+    const gapCard = screen.getByRole('article', `Đơn Rakuma ${gapNo}`).first();
+    await expect(gapCard).toContainText('Thiếu tên món');
+    await expect(gapCard).toContainText('Thiếu giá');
+    await expect(gapCard).toContainText('Đã gửi, chưa có mã vận đơn');
+
+    // The full card (filters) keeps the approve form, filled from the title and keywords
+    const status = screen.getByRole('combobox', 'Trạng thái');
+    await status.selectOption({ label: 'Chờ duyệt' });
+    const card = screen.getByRole('article', `Đơn Rakuma ${guessNo}`);
+    await card.getByRole('button', 'Mở chi tiết').tap();
+    const form = card.getByRole('form', `Duyệt đơn ${guessNo}`);
     await expect(form.getByLabel('Sản phẩm *')).toHaveValue(target.id);
     await expect(form.getByLabel('Số lượng *')).toHaveValue('4');
     await expect(form.getByLabel('Giá nhập mỗi cái (¥) *')).toHaveValue('25000');
     await expect(form).toContainText(`Tự chọn “${target.name}” theo từ khóa`);
 
-    // Chat: seller message after a "Tin mới" divider, multi-line text kept
-    const chat = screen.getByRole('region', `Tin nhắn với shopG-${id}`);
-    await expect(chat).toContainText('Tin mới');
-    await expect(chat).toContainText('明日届きます');
-
-    // Gap badges and the matching filter
-    const gapCard = screen.getByRole('article', `Đơn Rakuma ${gapNo}`).first();
-    await expect(gapCard).toContainText('Thiếu tên món');
-    await expect(gapCard).toContainText('Thiếu giá');
-    await expect(gapCard).toContainText('Đã gửi, chưa có mã vận đơn');
-    await screen.getByRole('combobox', 'Trạng thái').selectOption({ label: 'Thiếu tên hoặc giá' });
+    await status.selectOption({ label: 'Thiếu tên hoặc giá' });
     await expect(screen.getByRole('article', `Đơn Rakuma ${gapNo}`)).toBeVisible();
     await expect(screen.getByRole('article', `Đơn Rakuma ${guessNo}`)).toBeHidden();
   } finally {
@@ -155,7 +164,8 @@ test('sync writes a paid order into Nhập hàng; the owner splits the combined 
 
     await app.open('/#purchases');
     await browser.reload();
-    await screen.getByRole('combobox', 'Sản phẩm').selectOption({ label: 'Chưa có tên' });
+    await expect(screen.getByRole('alert')).toContainText('dòng chưa có tên');
+    await screen.getByRole('button', /^Xem \d+ dòng$/).tap();
     const row = screen.getByRole('region', 'Bảng nhập hàng').getByRole('row').filter({ hasText: `TRK${id}` });
     await expect(row).toContainText('Chưa có tên');
     await row.getByRole('button', /^Tách đơn gộp/).tap();
