@@ -167,7 +167,7 @@ test('sync writes a paid order into Nhập hàng; the owner splits the combined 
     await app.open('/#purchases');
     await browser.reload();
     await expect(screen.getByRole('region', 'Cảnh báo nhập hàng')).toContainText('dòng chưa có tên');
-    await screen.getByRole('button', /^Xem \d+ dòng$/).tap();
+    await screen.getByRole('button', /^Xem \d+ dòng chưa có tên$/).tap();
     const row = screen.getByRole('region', 'Bảng nhập hàng').getByRole('row').filter({ hasText: `TRK${id}` });
     await expect(row).toContainText('Chưa có tên');
     await row.getByRole('button', /^Tách đơn gộp/).tap();
