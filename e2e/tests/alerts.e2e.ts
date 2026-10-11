@@ -33,13 +33,12 @@ test('Rakuma to-do sections and Việc hôm nay: payment due, delivered not rece
     await expect(today).toContainText('đơn shop chưa gửi sau 3 ngày');
 
     await app.open('/#rakuma');
-    const payList = screen.getByRole('list', 'Đơn sắp hết hạn thanh toán');
-    await expect(payList).toContainText(`shopP-${id}`);
-    await expect(payList).toContainText(/còn [45] giờ/);
-    await expect(payList.getByRole('link', 'Mở giao dịch ↗')).toHaveAttribute('href', `https://fril.jp/transaction?item_id=p${id}`);
-    await expect(screen.getByRole('list', 'Đơn đã giao, chưa nhận hàng')).toContainText(`shopR-${id}`);
-    const slow = screen.getByRole('list', 'Đơn shop chưa gửi sau 3 ngày');
-    await expect(slow).toContainText(`shopS-${id}`);
+    const item = (list: string, shop: string) => screen.getByRole('list', list).getByRole('listitem').filter({ hasText: shop });
+    const pay = item('Đơn sắp hết hạn thanh toán', `shopP-${id}`);
+    await expect(pay).toContainText(/còn [45] giờ/);
+    await expect(pay.getByRole('link', 'Mở giao dịch ↗')).toHaveAttribute('href', `https://fril.jp/transaction?item_id=p${id}`);
+    await expect(item('Đơn đã giao, chưa nhận hàng', `shopR-${id}`)).toBeVisible();
+    const slow = item('Đơn shop chưa gửi sau 3 ngày', `shopS-${id}`);
     await slow.getByRole('button', 'Hỏi shop').tap();
     await expect(slow).toContainText('Đã soạn câu hỏi');
   } finally {
