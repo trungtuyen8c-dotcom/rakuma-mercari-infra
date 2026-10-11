@@ -37,6 +37,7 @@ test('synced Rakuma orders: approve into Nhập hàng, dismiss/restore, reply to
     await app.open('/#rakuma');
     await browser.reload(); // the SPA loads /state once; orders written by the bot appear after a reload
     const card = screen.getByRole('article', `Đơn Rakuma ${no.approve}`);
+    await card.getByRole('button', 'Mở chi tiết').tap(); // queued cards start folded
     const form = card.getByRole('form', `Duyệt đơn ${no.approve}`);
     await form.getByLabel('Sản phẩm *').selectOption({ label: '30th Celebration' });
     await form.getByLabel('Ngày đặt').fill(dash.period.start);
@@ -59,6 +60,7 @@ test('synced Rakuma orders: approve into Nhập hàng, dismiss/restore, reply to
 
     // Dismiss, then restore
     const skipCard = screen.getByRole('article', `Đơn Rakuma ${no.skip}`);
+    await skipCard.getByRole('button', 'Mở chi tiết').tap();
     await skipCard.getByRole('button', 'Bỏ qua').tap();
     await expect(screen.getByRole('status')).toContainText('Đã bỏ qua đơn này.');
     await screen.getByRole('button', /^Xem \d+ đơn khác/).tap();
@@ -164,7 +166,7 @@ test('sync writes a paid order into Nhập hàng; the owner splits the combined 
 
     await app.open('/#purchases');
     await browser.reload();
-    await expect(screen.getByRole('alert')).toContainText('dòng chưa có tên');
+    await expect(screen.getByRole('region', 'Cảnh báo nhập hàng')).toContainText('dòng chưa có tên');
     await screen.getByRole('button', /^Xem \d+ dòng$/).tap();
     const row = screen.getByRole('region', 'Bảng nhập hàng').getByRole('row').filter({ hasText: `TRK${id}` });
     await expect(row).toContainText('Chưa có tên');
