@@ -68,12 +68,13 @@ test('refund: waiting note, booked refund removes the row, ledger keeps both lin
   const note = `refund-${id}`;
   const mk = async (price: number, n: string) => (await (await api('/api/v1/purchases', { method: 'POST',
     json: { productId: product.id, price, qty: 1, date: dash.period.start, cardId: card.id, note: n } })).json()).id;
-  const keep = await mk(5000, `${note}-keep`);
+  const keepNote = `kept-${id}`;
+  const keep = await mk(5000, keepNote);
   await mk(24000, note);
   try {
     await app.open('/#purchases');
     await browser.reload();
-    const row = screen.getByRole('region', 'Bảng nhập hàng').getByRole('row').filter({ hasText: `${note}` }).filter({ hasNotText: 'keep' });
+    const row = screen.getByRole('region', 'Bảng nhập hàng').getByRole('row').filter({ hasText: note });
     await row.getByRole('button', /^Hoàn tiền dòng/).tap();
     const dialog = screen.getByRole('dialog', 'Hoàn tiền');
     await dialog.getByLabel('Ghi chú (lý do, ngày hẹn hoàn…)').fill('Shop huỷ, chờ Rakuma hoàn');
@@ -103,11 +104,11 @@ test('refund: waiting note, booked refund removes the row, ledger keeps both lin
     await expect(month).toContainText('24.000¥');
     await month.getByRole('button', 'Đánh dấu đã khớp sao kê').tap();
     await expect(month).toContainText('Đã đối soát');
-    const edit = await api(`/api/v1/purchases/${keep}`, { method: 'PUT', json: { productId: product.id, price: 6000, qty: 1, date: dash.period.start, note: `${note}-keep` } });
+    const edit = await api(`/api/v1/purchases/${keep}`, { method: 'PUT', json: { productId: product.id, price: 6000, qty: 1, date: dash.period.start, note: keepNote } });
     expect(edit.status).toBe(409);
     expect((await edit.json()).warnings[0]).toContain('đã đối soát');
   } finally {
-    for (const p of ((await (await api('/api/v1/purchases')).json()) as any[]).filter(p => (p.note || '').startsWith(note))) {
+    for (const p of ((await (await api('/api/v1/purchases')).json()) as any[]).filter(p => p.note === note || p.note === keepNote)) {
       await api(`/api/v1/purchases/${p.id}?force=true`, { method: 'DELETE' });
     }
   }
