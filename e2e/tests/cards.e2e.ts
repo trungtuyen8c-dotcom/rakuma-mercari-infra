@@ -113,3 +113,28 @@ test('refund: waiting note, booked refund removes the row, ledger keeps both lin
     }
   }
 });
+
+// Owner request 2026-10-11: the card sits next to the total and is picked in the table; paid rows without a card warn.
+test('pick the card in the table; rows without a card are flagged', { session: 'owner' }, async ({ app, screen, api, browser }) => {
+  await app.open('/');
+  const id = Date.now().toString(36);
+  const dash = await (await api('/api/v1/dashboard')).json();
+  const product = ((await (await api('/api/v1/products')).json()) as any[]).find(p => p.active);
+  const card = await (await api('/api/v1/cards', { method: 'POST', json: { name: `pick-${id}` } })).json();
+  const note = `row-${id}`;
+  const row = await (await api('/api/v1/purchases', { method: 'POST', json: { productId: product.id, price: 7000, qty: 1, date: dash.period.start, note } })).json();
+  try {
+    await app.open('/#purchases');
+    await browser.reload();
+    await expect(screen.getByRole('region', 'Cảnh báo nhập hàng')).toContainText('đã thanh toán nhưng chưa chọn thẻ');
+    const tr = screen.getByRole('region', 'Bảng nhập hàng').getByRole('row').filter({ hasText: note });
+    const pick = tr.getByRole('combobox', /^Thẻ thanh toán dòng/);
+    await expect(pick).toHaveValue('');
+    await pick.selectOption({ label: `pick-${id}` });
+    await expect(pick).toHaveValue(card.id);
+    const ledger: any[] = await (await api(`/api/v1/wallet-ledger?wallet=pick-${id}`)).json();
+    expect(ledger.map(r => r.amount)).toEqual([-7000]);
+  } finally {
+    await api(`/api/v1/purchases/${row.id}?force=true`, { method: 'DELETE' });
+  }
+});

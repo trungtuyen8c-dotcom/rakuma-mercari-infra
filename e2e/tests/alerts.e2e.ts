@@ -64,7 +64,7 @@ test('odd purchase price is flagged; editing in the dialog keeps the filter; sel
     await app.open('/#purchases');
     await browser.reload();
     await expect(screen.getByRole('region', 'Cảnh báo nhập hàng')).toContainText('dòng giá nhập lệch nhiều');
-    await screen.getByRole('button', /^Xem \d+ dòng$/).last().tap();
+    await screen.getByRole('button', /^Xem \d+ dòng giá lệch nhiều$/).tap();
     const odd = screen.getByRole('region', 'Bảng nhập hàng').getByRole('row').filter({ hasText: name });
     await expect(odd).toHaveCount(1);
     await expect(odd).toContainText('giá lệch nhiều');
