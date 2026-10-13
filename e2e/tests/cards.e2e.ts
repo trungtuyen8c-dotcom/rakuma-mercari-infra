@@ -138,3 +138,57 @@ test('pick the card in the table; rows without a card are flagged', { session: '
     await api(`/api/v1/purchases/${row.id}?force=true`, { method: 'DELETE' });
   }
 });
+
+// Owner decision 2026-10-14: points are capital bought with VND. A purchase paid partly with points keeps its full
+// cost; the card is charged the rest and the points go to the point wallet's ledger for the hub to price.
+test('pay part of a purchase with points: card charged the rest, points on the point wallet', { session: 'owner' }, async ({ app, screen, api, browser }) => {
+  await app.open('/');
+  const id = Date.now().toString(36);
+  const dash = await (await api('/api/v1/dashboard')).json();
+  const cardName = `E2E pcard ${id}`, walletName = `E2E point ${id}`, note = `points-${id}`;
+  const made: string[] = [];
+  try {
+    const card = await (await api('/api/v1/cards', { method: 'POST', json: { name: cardName } })).json();
+    made.push(card.id);
+    await app.open('/#settings');
+    const form = screen.getByRole('form', 'Thêm thẻ');
+    await form.getByLabel('Loại').selectOption({ label: 'Ví point' });
+    await form.getByLabel('Tên thẻ *').fill(walletName);
+    await form.getByRole('button', 'Thêm ví point').tap();
+    await expect(screen.getByRole('status')).toContainText(`Đã thêm ví point “${walletName}”.`);
+    const wallet = ((await (await api('/api/v1/cards')).json()) as any[]).find(c => c.name === walletName);
+    made.push(wallet.id);
+    expect(wallet.currency).toBe('PT');
+
+    await app.open('/#purchases');
+    await browser.reload();
+    await screen.getByRole('button', 'Thêm dòng nhập').tap();
+    await screen.getByLabel('Sản phẩm *').selectOption({ index: 1 });
+    await screen.getByLabel('Ngày đặt').fill(dash.period.start);
+    await screen.getByLabel('Giá nhập mỗi cái (¥) *').fill('25000');
+    await screen.getByLabel('Thẻ thanh toán').selectOption({ label: cardName });
+    await screen.getByLabel('Trả bằng point').fill('5000');
+    if (await screen.getByLabel('Ví point').isVisible()) await screen.getByLabel('Ví point').selectOption({ label: walletName });
+    await screen.getByLabel('Ghi chú').fill(note);
+    await screen.getByRole('button', 'Lưu dòng nhập').tap();
+    const row = screen.getByRole('region', 'Bảng nhập hàng').getByRole('row').filter({ hasText: note });
+    await expect(row).toContainText('25.000¥');
+    await expect(row).toContainText('thẻ 20.000¥ + 5.000 pt');
+
+    const ledger: any[] = await (await api('/api/v1/wallet-ledger')).json();
+    const mine = ledger.filter(r => r.wallet === cardName || r.wallet === walletName).map(r => [r.wallet, r.currency, r.amount, r.category]);
+    expect(mine).toEqual(expect.arrayContaining([[cardName, 'JPY', -20000, 'Mua hàng'], [walletName, 'PT', -5000, 'Tiêu point']]));
+    expect(mine).toHaveLength(2);
+
+    await app.open('/#cards');
+    await screen.getByLabel('Từ').fill(dash.period.start);
+    await screen.getByLabel('Đến').fill(dash.period.end);
+    await screen.getByRole('combobox', 'Thẻ').selectOption({ label: walletName });
+    await expect(screen.getByRole('region', 'Bảng sổ thẻ').getByRole('row').filter({ hasText: walletName })).toContainText('5.000 pt');
+  } finally {
+    for (const p of ((await (await api('/api/v1/purchases')).json()) as any[]).filter(p => p.note === note)) {
+      await api(`/api/v1/purchases/${p.id}`, { method: 'DELETE' });
+    }
+    for (const c of made) await api(`/api/v1/cards/${c}`, { method: 'DELETE' });
+  }
+});
