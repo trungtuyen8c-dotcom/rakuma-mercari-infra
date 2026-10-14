@@ -50,8 +50,7 @@ test('Rakuma to-do sections and Việc hôm nay: payment due, delivered not rece
     await expect(item('Đơn shop chưa gửi hàng', `shopW-${id}`)).not.toContainText('chậm');
     const slow = item('Đơn shop chưa gửi hàng', `shopS-${id}`);
     await expect(slow).toContainText('chờ 5 ngày · chậm');
-    await slow.getByRole('button', 'Hỏi shop').tap();
-    await expect(slow).toContainText('Đã soạn câu hỏi');
+    await expect(slow.getByRole('link', 'Mở giao dịch ↗')).toHaveAttribute('href', `https://fril.jp/transaction?item_id=s${id}`);
   } finally {
     for (const p of ((await (await api('/api/v1/purchases')).json()) as any[]).filter(p => links.includes(p.link))) {
       await api(`/api/v1/purchases/${p.id}`, { method: 'DELETE' });
