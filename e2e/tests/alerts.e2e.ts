@@ -11,9 +11,10 @@ test('Rakuma to-do sections and Việc hôm nay: payment due, delivered not rece
   const pad = (n: number) => String(n).padStart(2, '0');
   const due = `${pad(jst.getUTCMonth() + 1)}/${pad(jst.getUTCDate())} ${pad(jst.getUTCHours())}:${pad(jst.getUTCMinutes())}`;
   const fiveDaysAgo = new Date(Date.now() + 9 * 3600e3 - 5 * 864e5).toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() + 9 * 3600e3 - 864e5).toISOString().slice(0, 10);
   const order = (no: string, status: string, extra = {}) => ({ orderNo: no + id, link: `https://item.fril.jp/${no.toLowerCase()}${id}`,
     title: `E2E ${no}`, status, price: 20000, seller: `shop${no}-${id}`, chatOpen: true, ...extra });
-  const links = ['p', 'r', 's'].map(n => `https://item.fril.jp/${n}${id}`);
+  const links = ['p', 'r', 's', 'w', 'x'].map(n => `https://item.fril.jp/${n}${id}`);
   try {
     const res = await fetch(new URL('/api/v1/rakuma/sync', app.baseUrl), {
       method: 'POST', headers: { authorization: `Bearer ${key.key}`, 'content-type': 'application/json' },
@@ -21,9 +22,14 @@ test('Rakuma to-do sections and Việc hôm nay: payment due, delivered not rece
         order('P', `支払い (期限 ${due})`),
         order('R', '商品の受取 (発送済み 10/08, 配達済み)', { date: dash.period.start, tracking: `TR${id}` }),
         order('S', '商品の受取', { date: fiveDaysAgo }),
+        order('W', '商品発送待ち', { date: yesterday }),
+        order('X', '商品の受取 (発送済み 10/08, 配達済み)', { date: dash.period.start, tracking: `TX${id}` }),
       ] }),
     });
     expect(res.status).toBe(200);
+    // The owner deleted row X: its order no longer raises alerts
+    const rowX = ((await (await api('/api/v1/purchases')).json()) as any[]).find(p => p.link === links[4]);
+    await api(`/api/v1/purchases/${rowX.id}`, { method: 'DELETE' });
 
     await app.open('/#dashboard');
     await browser.reload();
@@ -38,7 +44,12 @@ test('Rakuma to-do sections and Việc hôm nay: payment due, delivered not rece
     await expect(pay).toContainText(/còn [45] giờ/);
     await expect(pay.getByRole('link', 'Mở giao dịch ↗')).toHaveAttribute('href', `https://fril.jp/transaction?item_id=p${id}`);
     await expect(item('Đơn đã giao, chưa nhận hàng', `shopR-${id}`)).toBeVisible();
-    const slow = item('Đơn shop chưa gửi sau 3 ngày', `shopS-${id}`);
+    await expect(item('Đơn đã giao, chưa nhận hàng', `shopX-${id}`)).toHaveCount(0);
+    // Every paid order not shipped yet is listed with its wait; 3 days or more is slow
+    await expect(item('Đơn shop chưa gửi hàng', `shopW-${id}`)).toContainText('chờ 1 ngày');
+    await expect(item('Đơn shop chưa gửi hàng', `shopW-${id}`)).not.toContainText('chậm');
+    const slow = item('Đơn shop chưa gửi hàng', `shopS-${id}`);
+    await expect(slow).toContainText('chờ 5 ngày · chậm');
     await slow.getByRole('button', 'Hỏi shop').tap();
     await expect(slow).toContainText('Đã soạn câu hỏi');
   } finally {
