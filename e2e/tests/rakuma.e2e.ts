@@ -195,3 +195,41 @@ test('sync writes a paid order into Nhập hàng; the owner splits the combined 
     await api(`/api/v1/api-keys/${key.record.id}/revoke`, { method: 'POST' });
   }
 });
+
+// Owner request 2026-10-14: an order-wide discount (400¥ off 3 items) is spread so the rows add up to the card charge.
+test('split spreads the order discount so the rows match the card charge', { session: 'owner' }, async ({ app, screen, api, browser }) => {
+  await app.open('/');
+  const id = Date.now().toString(36);
+  const dash = await (await api('/api/v1/dashboard')).json();
+  const [a] = ((await (await api('/api/v1/products')).json()) as any[]).filter(p => p.active);
+  const note = `spread-${id}`;
+  const rowsOf = async () => ((await (await api('/api/v1/purchases')).json()) as any[]).filter(p => p.note === note);
+  try {
+    await api('/api/v1/purchases', { method: 'POST', json: { productId: a.id, price: 30000, qty: 1, discount: 400, date: dash.period.start, note, link: `https://item.fril.jp/sp${id}` } });
+    await app.open('/#purchases');
+    await browser.reload();
+    await screen.getByRole('searchbox', 'Tìm dòng nhập').fill(note);
+    await screen.getByRole('region', 'Bảng nhập hàng').getByRole('row').filter({ hasText: note }).getByRole('button', /^Tách đơn gộp/).tap();
+
+    const form = screen.getByRole('form', /^Tách đơn gộp/);
+    await form.getByRole('button', '+ Thêm sản phẩm').tap();
+    for (const i of [1, 2, 3]) {
+      await form.getByRole('combobox', `Sản phẩm ${i}`).selectOption({ label: a.name });
+      await form.getByLabel(`Giá mỗi cái sản phẩm ${i} (¥)`).fill('10000');
+    }
+    await expect(form.getByLabel('Giảm giá cả đơn (¥)')).toHaveValue('400');
+    await form.getByRole('button', 'Chia giảm giá').tap();
+    await expect(form.getByLabel('Giảm giá mỗi cái sản phẩm 1 (¥)')).toHaveValue('134');
+    await expect(form.getByLabel('Giảm giá mỗi cái sản phẩm 2 (¥)')).toHaveValue('133');
+    await expect(form.getByLabel('Giảm giá mỗi cái sản phẩm 3 (¥)')).toHaveValue('133');
+    await expect(form).toContainText('Đã chia 29.600¥');
+    await form.getByRole('button', 'Lưu 3 dòng').tap();
+    await expect(screen.getByRole('status')).toContainText('Đã tách thành 3 dòng nhập.');
+
+    const rows = await rowsOf();
+    expect(rows.map(r => r.discount).sort()).toEqual([133, 133, 134]);
+    expect(rows.reduce((n, r) => n + r.total, 0)).toBe(29600);
+  } finally {
+    for (const r of await rowsOf()) await api(`/api/v1/purchases/${r.id}`, { method: 'DELETE' });
+  }
+});
