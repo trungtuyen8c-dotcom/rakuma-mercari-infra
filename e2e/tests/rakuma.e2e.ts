@@ -62,12 +62,15 @@ test('synced Rakuma orders: approve into Nhập hàng, dismiss/restore, reply to
     const skipCard = screen.getByRole('article', `Đơn Rakuma ${no.skip}`);
     await skipCard.getByRole('button', 'Mở chi tiết').tap();
     await skipCard.getByRole('button', 'Bỏ qua').tap();
+    await skipCard.getByLabel('Lý do bỏ qua').fill('đơn huỷ');
+    await skipCard.getByRole('button', 'Xác nhận bỏ qua').tap();
     await expect(screen.getByRole('status')).toContainText('Đã bỏ qua đơn này.');
-    await screen.getByRole('button', /^Xem \d+ đơn khác/).tap();
+    // Listed under "Đã bỏ qua" with who and why, and restored from there
     const skipped = screen.getByRole('article', `Đơn Rakuma ${no.skip}`);
     await skipped.getByRole('button', 'Mở chi tiết').tap();
-    await skipped.getByRole('button', 'Đưa về hàng chờ').tap();
-    await expect(screen.getByRole('status')).toContainText('Đã đưa đơn về hàng chờ.');
+    await expect(skipped).toContainText('Bấm Bỏ qua: đơn huỷ');
+    await skipped.getByRole('button', 'Khôi phục').tap();
+    await expect(screen.getByRole('status')).toContainText('Đã khôi phục, đơn về hàng chờ.');
 
     // Seller message is shown; the owner queues a reply, the sync bot marks it sent
     const chat = screen.getByRole('article', `Đơn Rakuma ${no.chat}`).first();

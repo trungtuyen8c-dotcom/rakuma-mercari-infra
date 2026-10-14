@@ -51,6 +51,16 @@ test('Rakuma to-do sections and Việc hôm nay: payment due, delivered not rece
     const slow = item('Đơn shop chưa gửi hàng', `shopS-${id}`);
     await expect(slow).toContainText('chờ 5 ngày · chậm');
     await expect(slow.getByRole('link', 'Mở giao dịch ↗')).toHaveAttribute('href', `https://fril.jp/transaction?item_id=s${id}`);
+
+    // Row X was deleted although X has a tracking number: flagged in Nhập hàng, listed under "Đã bỏ qua" with the reason
+    await app.open('/#purchases');
+    await expect(screen.getByRole('region', 'Cảnh báo nhập hàng')).toContainText('đã bỏ qua nhưng có vận đơn hoặc đã giao/nhận');
+    await app.open('/#rakuma');
+    const x = screen.getByRole('article', `Đơn Rakuma X${id}`);
+    await x.getByRole('button', 'Mở chi tiết').tap();
+    await expect(x).toContainText(`Xoá dòng nhập: Đã xoá dòng nhập #${rowX.id}`);
+    await x.getByRole('button', 'Khôi phục').tap();
+    await expect(screen.getByRole('status')).toContainText('Đã khôi phục, đơn về hàng chờ.');
   } finally {
     for (const p of ((await (await api('/api/v1/purchases')).json()) as any[]).filter(p => links.includes(p.link))) {
       await api(`/api/v1/purchases/${p.id}`, { method: 'DELETE' });
