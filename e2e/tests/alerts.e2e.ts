@@ -14,7 +14,9 @@ test('Rakuma to-do sections and Việc hôm nay: payment due, delivered not rece
   const yesterday = new Date(Date.now() + 9 * 3600e3 - 864e5).toISOString().slice(0, 10);
   const order = (no: string, status: string, extra = {}) => ({ orderNo: no + id, link: `https://item.fril.jp/${no.toLowerCase()}${id}`,
     title: `E2E ${no}`, status, price: 20000, seller: `shop${no}-${id}`, chatOpen: true, ...extra });
-  const links = ['p', 'r', 's', 'w', 'x'].map(n => `https://item.fril.jp/${n}${id}`);
+  const links = ['p', 'r', 's', 'w', 'x', 'm', 'n', 'u'].map(n => `https://item.fril.jp/${n}${id}`);
+  const parcel = String(Date.now()).slice(-12);
+  const chat = (body: string) => [{ from: 'seller', at: '2026/10/13 17:49', body }];
   try {
     const res = await fetch(new URL('/api/v1/rakuma/sync', app.baseUrl), {
       method: 'POST', headers: { authorization: `Bearer ${key.key}`, 'content-type': 'application/json' },
@@ -24,9 +26,18 @@ test('Rakuma to-do sections and Việc hôm nay: payment due, delivered not rece
         order('S', '商品の受取', { date: fiveDaysAgo }),
         order('W', '商品発送待ち', { date: yesterday }),
         order('X', '商品の受取 (発送済み 10/08, 配達済み)', { date: dash.period.start, tracking: `TX${id}` }),
+        // Shipped by the seller's own carrier: the number is read from the chat; two orders of one shop share a parcel
+        order('M', '商品の受取 (発送済み 10/13)', { date: dash.period.start, seller: `shopM-${id}`, messages: chat(`本日ゆうパックにて発送いたしました。 追跡番号は${parcel}です。`) }),
+        order('N', '商品の受取 (発送済み 10/13)', { date: dash.period.start, seller: `shopM-${id}`, messages: chat(`本日ゆうパックにて発送いたしました。 追跡番号は${parcel}です。`) }),
+        order('U', '商品の受取 (発送済み 10/13)', { date: dash.period.start, messages: chat('本日発送しました。よろしくお願いします。') }),
       ] }),
     });
     expect(res.status).toBe(200);
+    const synced = await res.json();
+    expect(synced.trackingFromChat).toBe(2);
+    expect(synced.merged).toBe(2);
+    const rowsMN = ((await (await api('/api/v1/purchases')).json()) as any[]).filter(p => p.link === links[5] || p.link === links[6]);
+    expect(rowsMN.map(p => [p.tracking, p.merged])).toEqual([[parcel, true], [parcel, true]]);
     // The owner deleted row X: its order no longer raises alerts
     const rowX = ((await (await api('/api/v1/purchases')).json()) as any[]).find(p => p.link === links[4]);
     await api(`/api/v1/purchases/${rowX.id}`, { method: 'DELETE' });
@@ -45,6 +56,12 @@ test('Rakuma to-do sections and Việc hôm nay: payment due, delivered not rece
     await expect(pay.getByRole('link', 'Mở giao dịch ↗')).toHaveAttribute('href', `https://fril.jp/transaction?item_id=p${id}`);
     await expect(item('Đơn đã giao, chưa nhận hàng', `shopR-${id}`)).toBeVisible();
     await expect(item('Đơn đã giao, chưa nhận hàng', `shopX-${id}`)).toHaveCount(0);
+    // No number anywhere: flagged, typed in by hand onto the purchase row
+    const noNumber = item('Đơn đã gửi, chưa có mã vận đơn', `shopU-${id}`);
+    await noNumber.getByLabel(`Mã vận đơn đơn U${id}`).fill('987654321098');
+    await noNumber.getByRole('button', 'Lưu').tap();
+    await expect(item('Đơn đã gửi, chưa có mã vận đơn', `shopU-${id}`)).toHaveCount(0);
+    await expect(item('Đơn đã gửi, chưa có mã vận đơn', `shopM-${id}`)).toHaveCount(0);
     // Every paid order not shipped yet is listed with its wait; 3 days or more is slow
     await expect(item('Đơn shop chưa gửi hàng', `shopW-${id}`)).toContainText('chờ 1 ngày');
     await expect(item('Đơn shop chưa gửi hàng', `shopW-${id}`)).not.toContainText('chậm');
